@@ -1,9 +1,9 @@
 from dotenv import load_dotenv
 from langchain.globals import set_verbose, set_debug
-from langchain_groq.chat_models import ChatGroq
 from langgraph.constants import END
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
 
 from agent.prompts import *
 from agent.states import *
@@ -14,15 +14,18 @@ _ = load_dotenv()
 set_debug(True)
 set_verbose(True)
 
-llm = ChatGroq(model="openai/gpt-oss-120b")
+# llm = ChatGroq(model="openai/gpt-oss-120b")
+llm = ChatOpenAI(
+    model="gpt-4o-mini",  # or "gpt-4o", "gpt-3.5-turbo", etc.
+    temperature=0.7,
+    # api_key="your_openai_api_key"  # or set via env var: OPENAI_API_KEY
+)
 
 
 def planner_agent(state: dict) -> dict:
     """Converts user prompt into a structured Plan."""
     user_prompt = state["user_prompt"]
-    resp = llm.with_structured_output(Plan).invoke(
-        planner_prompt(user_prompt)
-    )
+    resp = llm.with_structured_output(Plan).invoke(planner_prompt(user_prompt))
     if resp is None:
         raise ValueError("Planner did not return a valid response.")
     return {"plan": resp}
@@ -37,7 +40,7 @@ def architect_agent(state: dict) -> dict:
     if resp is None:
         raise ValueError("Planner did not return a valid response.")
 
-    resp.plan = plan
+    # resp.plan = plan
     print(resp.model_dump_json())
     return {"task_plan": resp}
 
@@ -66,8 +69,14 @@ def coder_agent(state: dict) -> dict:
     coder_tools = [read_file, write_file, list_files, get_current_directory]
     react_agent = create_react_agent(llm, coder_tools)
 
-    react_agent.invoke({"messages": [{"role": "system", "content": system_prompt},
-                                     {"role": "user", "content": user_prompt}]})
+    react_agent.invoke(
+        {
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+        }
+    )
 
     coder_state.current_step_idx += 1
     return {"coder_state": coder_state}
@@ -84,12 +93,14 @@ graph.add_edge("architect", "coder")
 graph.add_conditional_edges(
     "coder",
     lambda s: "END" if s.get("status") == "DONE" else "coder",
-    {"END": END, "coder": "coder"}
+    {"END": END, "coder": "coder"},
 )
 
 graph.set_entry_point("planner")
 agent = graph.compile()
 if __name__ == "__main__":
-    result = agent.invoke({"user_prompt": "Build a colourful modern todo app in html css and js"},
-                          {"recursion_limit": 100})
+    result = agent.invoke(
+        {"user_prompt": "Build a colourful modern todo app in html css and js"},
+        {"recursion_limit": 100},
+    )
     print("Final State:", result)

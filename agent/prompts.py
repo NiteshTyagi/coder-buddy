@@ -19,6 +19,7 @@ RULES:
     * Name the variables, functions, classes, and components to be defined.
     * Mention how this task depends on or will be used by previous tasks.
     * Include integration details: imports, expected function signatures, data flow.
+    * Always include the README.md file and steps to run the project on the machine.
 - Order tasks so that dependencies are implemented first.
 - Each step must be SELF-CONTAINED but also carry FORWARD the relevant context from earlier tasks.
 
